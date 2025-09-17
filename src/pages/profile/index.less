@@ -387,4 +387,50 @@
   text-align: center;
 }
 
+// 支付状态提示
+.payment-status-tip {
+  margin: 16px 20px;
+  background: linear-gradient(135deg, #FFE082 0%, #FFF176 100%);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  animation: pulse 2s infinite;
+
+  .payment-tip-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .payment-tip-text {
+    font-size: 28px;
+    color: #E65100;
+    font-weight: 500;
+  }
+
+  .manual-check-btn {
+    background: #FF9800;
+    border: none;
+    border-radius: 20px;
+    color: white;
+    font-size: 24px;
+
+    &:hover {
+      background: #F57C00;
+    }
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 

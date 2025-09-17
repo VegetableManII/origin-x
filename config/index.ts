@@ -57,13 +57,13 @@ export default defineConfig<'webpack5'>(async (merge, { command, mode }) => {
       publicPath: '/',
       staticDirectory: 'static',
       output: {
-        filename: 'js/[name].[hash:8].js',
-        chunkFilename: 'js/[name].[chunkhash:8].js'
+        filename: 'js/[name].[contenthash:8].js',
+        chunkFilename: 'js/[name].[contenthash:8].js'
       },
       miniCssExtractPluginOption: {
         ignoreOrder: true,
-        filename: 'css/[name].[hash].css',
-        chunkFilename: 'css/[name].[chunkhash].css'
+        filename: 'css/[name].[contenthash:8].css',
+        chunkFilename: 'css/[name].[contenthash:8].css'
       },
       postcss: {
         autoprefixer: {
@@ -80,6 +80,92 @@ export default defineConfig<'webpack5'>(async (merge, { command, mode }) => {
       },
       webpackChain(chain) {
         chain.resolve.plugin('tsconfig-paths').use(TsconfigPathsPlugin)
+
+        // 配置代码分割优化
+        chain.optimization.splitChunks({
+          chunks: 'all',
+          minSize: 20000,
+          maxSize: 200000, // 200KB 限制，更严格
+          cacheGroups: {
+            // React 生态系统
+            react: {
+              test: /[\\/]node_modules[\\/](react|react-dom|react-router|@types\/react)[\\/]/,
+              name: 'react',
+              priority: 30,
+              chunks: 'all',
+            },
+            // Taro 核心
+            taroCore: {
+              test: /[\\/]node_modules[\\/]@tarojs[\\/](taro|runtime|router|cli)[\\/]/,
+              name: 'taro-core',
+              priority: 25,
+              chunks: 'all',
+            },
+            // Taro 组件
+            taroComponents: {
+              test: /[\\/]@tarojs[\\/]components[\\/]/,
+              name: 'taro-components',
+              priority: 20,
+              chunks: 'all',
+            },
+            // Core-js polyfills
+            coreJs: {
+              test: /[\\/]node_modules[\\/]core-js[\\/]/,
+              name: 'core-js',
+              priority: 25,
+              chunks: 'all',
+            },
+            // 其他第三方库 - 分成多个小包
+            vendor1: {
+              test: /[\\/]node_modules[\\/]/,
+              name(module) {
+                // 根据包名生成不同的chunk名
+                const packageName = module.context.match(/[\\/]node_modules[\\/](.*?)([\\/]|$)/)[1];
+                // 将包名转换为安全的chunk名
+                return `vendor-${packageName.replace('@', '').replace('/', '-')}`;
+              },
+              priority: 10,
+              chunks: 'all',
+              maxSize: 150000, // 150KB 限制每个vendor包
+            },
+            // 项目公共代码
+            common: {
+              name: 'common',
+              minChunks: 2,
+              priority: 5,
+              chunks: 'all',
+              enforce: true,
+              maxSize: 100000, // 100KB 限制
+            },
+            // 异步加载的服务
+            services: {
+              test: /[\\/]src[\\/]services[\\/]/,
+              name: 'services',
+              priority: 15,
+              chunks: 'async',
+            },
+            // 异步加载的工具
+            utils: {
+              test: /[\\/]src[\\/]utils[\\/]/,
+              name: 'utils',
+              priority: 15,
+              chunks: 'async',
+            },
+            // 异步加载的组件
+            components: {
+              test: /[\\/]src[\\/]components[\\/]/,
+              name: 'components',
+              priority: 15,
+              chunks: 'async',
+            }
+          }
+        })
+
+        // 性能提示配置
+        chain.performance
+          .maxAssetSize(200000) // 200KB
+          .maxEntrypointSize(500000) // 500KB - 允许多个小包的总和
+          .hints('warning') // 只显示警告，不阻止构建
       }
     },
     rn: {

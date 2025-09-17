@@ -1,16 +1,19 @@
 import { View, Text, Image, Button, ScrollView } from '@tarojs/components'
 import Taro, { useLoad, showToast, usePullDownRefresh } from '@tarojs/taro'
-import { useState, useRef } from 'react'
+import { useState, useRef, Suspense, lazy } from 'react'
 import { useUser } from '../../stores/userStore'
 import { UserWork } from '../../../types/auth'
-import { WorksService } from '../../services/works'
-import { DownloadManager } from '../../utils/downloadManager'
-import WorkPreviewModal, { WorkPreviewData } from '../../components/WorkPreviewModal'
+import { WorkPreviewData } from '../../components/WorkPreviewModal'
+import { RechargeOption } from '../../components/RechargeModal'
+
+// 懒加载组件和服务
+const WorkPreviewModal = lazy(() => import('../../components/WorkPreviewModal'))
+const RechargeModal = lazy(() => import('../../components/RechargeModal'))
 
 import './index.less'
 
 export default function Profile() {
-  const { state } = useUser()
+  const { state, refreshUserProfile } = useUser()
   
   // 本地历史记录状态管理
   const [userWorks, setUserWorks] = useState<UserWork[]>([])
@@ -27,6 +30,11 @@ export default function Profile() {
   const [previewModalVisible, setPreviewModalVisible] = useState(false)
   const [selectedWork, setSelectedWork] = useState<WorkPreviewData | null>(null)
 
+  // 充值弹窗状态
+  const [rechargeModalVisible, setRechargeModalVisible] = useState(false)
+  // 支付状态提示
+  const [paymentPending, setPaymentPending] = useState(false)
+
   // 获取用户历史记录
   const fetchUserWorks = async (pageNo: number = 1, pageSize: number = 4, isLoadMore: boolean = false) => {
     try {
@@ -40,6 +48,7 @@ export default function Profile() {
       }
       setWorksError(null)
 
+      const { WorksService } = await import('../../services/works')
       const response = await WorksService.getUserWorksWithPagination(pageNo, pageSize)
 
       if (isLoadMore) {
@@ -92,6 +101,20 @@ export default function Profile() {
     console.log('Profile page loaded.')
     // 加载用户历史记录
     fetchUserWorks(1, 4)
+
+    // 小程序环境下设置页面显示监听
+    if (Taro.getEnv() === Taro.ENV_TYPE.WEAPP) {
+      // 注册页面显示事件处理
+      const pages = Taro.getCurrentPages()
+      const currentPage = pages[pages.length - 1]
+      if (currentPage) {
+        const originalOnShow = currentPage.onShow
+        currentPage.onShow = () => {
+          if (originalOnShow) originalOnShow.call(currentPage)
+          handlePageShow()
+        }
+      }
+    }
   })
 
   // 下拉刷新处理
@@ -119,7 +142,123 @@ export default function Profile() {
 
 
   const handleRechargeClick = () => {
-    showToast({ title: '充值功能开发中', icon: 'none' })
+    setRechargeModalVisible(true)
+  }
+
+  // 处理充值弹窗关闭
+  const handleRechargeModalClose = (): void => {
+    setRechargeModalVisible(false)
+  }
+
+  // 处理充值确认
+  const handleRechargeConfirm = async (option: RechargeOption): Promise<void> => {
+    const env = Taro.getEnv()
+
+    try {
+      // 动态加载充值服务和支付管理器
+      const { RechargeService } = await import('../../services/recharge')
+      const { PaymentManager } = await import('../../utils/paymentManager')
+
+      // 生成唯一附加信息
+      const attach = RechargeService.generateAttach()
+
+      // 发起充值请求
+      const rechargeResponse = await RechargeService.createRecharge({
+        payEntrypoint: RechargeService.getPayEntrypoint(),
+        payPlatform: 'wechat',
+        attach: attach,
+        amount: option.amount
+      })
+
+      // 关闭充值弹窗
+      setRechargeModalVisible(false)
+
+      // 显示支付进行中状态
+      setPaymentPending(true)
+
+      // 开始支付流程管理
+      const paymentManager = PaymentManager.getInstance()
+      paymentManager.startPayment(rechargeResponse.orderId, attach, option.amount, {
+        onSuccess: async (result) => {
+          setPaymentPending(false)
+          console.log('充值成功:', result)
+          // 刷新用户余额等信息
+          try {
+            await refreshUserProfile()
+            Taro.showToast({
+              title: '充值成功，余额已更新',
+              icon: 'success'
+            })
+          } catch (error) {
+            console.error('刷新用户信息失败:', error)
+            Taro.showToast({
+              title: '充值成功，请手动刷新页面',
+              icon: 'none'
+            })
+          }
+        },
+        onFailed: (result) => {
+          setPaymentPending(false)
+          console.log('充值失败:', result)
+        },
+        onTimeout: () => {
+          setPaymentPending(false)
+          console.log('充值超时')
+        }
+      })
+
+      if (env === Taro.ENV_TYPE.WEB) {
+        // H5环境：直接跳转到支付页面
+        await RechargeService.handlePaymentRedirect(rechargeResponse)
+      } else if (env === Taro.ENV_TYPE.WEAPP) {
+        // 小程序环境：跳转到支付小程序
+        try {
+          await RechargeService.handlePaymentRedirect(rechargeResponse)
+          // 跳转成功，显示提示
+          Taro.showToast({
+            title: '正在跳转到支付页面...',
+            icon: 'loading',
+            duration: 1500
+          })
+        } catch (error) {
+          // 跳转失败，清理支付状态
+          paymentManager.cleanup()
+          throw error
+        }
+      }
+
+    } catch (error) {
+      setPaymentPending(false)
+      console.error('充值失败:', error)
+      Taro.showToast({
+        title: error instanceof Error ? error.message : '充值失败',
+        icon: 'error'
+      })
+    }
+  }
+
+  // 手动查询支付状态
+  const handleManualCheckPayment = async (): Promise<void> => {
+    const { PaymentManager } = await import('../../utils/paymentManager')
+    const paymentManager = PaymentManager.getInstance()
+    const result = await paymentManager.manualCheckPaymentStatus()
+
+    if (result?.payTime) {
+      // 支付已完成，刷新用户信息
+      setPaymentPending(false)
+      try {
+        await refreshUserProfile()
+      } catch (error) {
+        console.error('刷新用户信息失败:', error)
+      }
+    }
+  }
+
+  // 小程序环境下的页面显示处理
+  const handlePageShow = async (): Promise<void> => {
+    const { PaymentManager } = await import('../../utils/paymentManager')
+    const paymentManager = PaymentManager.getInstance()
+    paymentManager.handlePageShow()
   }
 
   const handleViewAllClick = () => {
@@ -166,6 +305,7 @@ export default function Profile() {
   // 处理下载（从弹窗中触发）
   const handleDownloadFromModal = async (workData: WorkPreviewData): Promise<void> => {
     try {
+      const { DownloadManager } = await import('../../utils/downloadManager')
       await DownloadManager.downloadImage(workData.gifUrl)
       console.log('作品下载成功:', workData.id)
     } catch (error) {
@@ -213,7 +353,24 @@ export default function Profile() {
           </View>
         </View>
       </View>
-      
+
+      {/* 支付状态提示 */}
+      {paymentPending && (
+        <View className='payment-status-tip'>
+          <View className='payment-tip-content'>
+            <Text className='payment-tip-text'>💰 支付处理中，请稍候...</Text>
+            <Button
+              className='manual-check-btn'
+              size='mini'
+              type='primary'
+              onClick={handleManualCheckPayment}
+            >
+              手动查询
+            </Button>
+          </View>
+        </View>
+      )}
+
       {/* 历史记录列表 */}
       <View className='history-section'>
         <View className='history-header'>
@@ -281,12 +438,27 @@ export default function Profile() {
       </View>
 
       {/* 作品预览弹窗 */}
-      <WorkPreviewModal
-        isOpened={previewModalVisible}
-        workData={selectedWork}
-        onClose={handleClosePreviewModal}
-        onDownload={handleDownloadFromModal}
-      />
+      {previewModalVisible && (
+        <Suspense fallback={<View className='modal-loading'>加载中...</View>}>
+          <WorkPreviewModal
+            isOpened={previewModalVisible}
+            workData={selectedWork}
+            onClose={handleClosePreviewModal}
+            onDownload={handleDownloadFromModal}
+          />
+        </Suspense>
+      )}
+
+      {/* 充值弹窗 */}
+      {rechargeModalVisible && (
+        <Suspense fallback={<View className='modal-loading'>加载中...</View>}>
+          <RechargeModal
+            isOpened={rechargeModalVisible}
+            onClose={handleRechargeModalClose}
+            onConfirm={handleRechargeConfirm}
+          />
+        </Suspense>
+      )}
     </View>
   )
 }

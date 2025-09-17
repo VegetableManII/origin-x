@@ -56,6 +56,45 @@
   background: #ffffff;
   border-bottom: 1px solid #f8f9fa;
   z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-actions {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  margin-top: -45px;
+  padding-right: 10px;
+}
+
+.recharge-btn {
+  background: linear-gradient(135deg, #007aff, #0056cc);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.3);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.recharge-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.4);
+}
+
+.recharge-btn:active {
+  transform: translateY(0);
+}
+
+.recharge-btn-text {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .creativity-logo {
@@ -1424,7 +1463,7 @@
   .input-area {
     padding-left: 12px;
     padding-right: 12px;
-    padding-bottom: var(--tabbar-height, 50px); /* 移动端为tabBar留出空间 */
+    padding-bottom: 0; /* 移动端也直接紧挨着tabbar */
     padding-top: 0;
     bottom: 0; /* 移动端也固定在底部 */
     height: 0; /* 移动端高度也设置为0 */
@@ -1636,7 +1675,7 @@
   right: 0;
   padding-left: 16px;
   padding-right: 16px;
-  padding-bottom: var(--tabbar-height, 50px); /* 使用padding-bottom为tabBar留出空间 */
+  padding-bottom: 0; /* 直接紧挨着tabbar，不需要padding-bottom */
   padding-top: 0;
   height: 0; /* 高度设置为0，完全由内容撑开 */
   z-index: 1000;
@@ -1821,8 +1860,14 @@
 
 /* 小程序输入区域整体优化 */
 .taro_page .input-area {
-  /* 确保输入区域在键盘弹出时有足够的滚动空间 */
-  /* 现在使用padding-bottom和margin来控制与tabbar的距离 */
+  /* 小程序环境：底部留出少许空隙，不完全贴着tabbar */
+  padding-bottom: 10px;
+}
+
+/* H5环境输入区域优化 - 使用body class区分 */
+body:not(.taro_page) .input-area {
+  /* H5环境：底部留出tabbar高度的空间 */
+  padding-bottom: var(--tabbar-height, 50px);
 }
 
 /* 小程序页面底部留出更多空间 */

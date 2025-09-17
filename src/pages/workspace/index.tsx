@@ -1,12 +1,16 @@
 import { View, Text, Image, Video, Textarea } from '@tarojs/components'
 import Taro, { useLoad } from '@tarojs/taro'
-import { useState, useRef, useEffect } from 'react'
-import { UploadService } from '../../services/upload'
-import { H5UploadUtils } from '../../utils/h5Upload'
-import { GenerateService, DemoExample, GenerateConfig } from '../../services/generate'
+import { useState, useRef, useEffect, useCallback, Suspense, lazy } from 'react'
+// UploadService 改为按需加载
+// H5UploadUtils 改为按需加载
+import { DemoExample, GenerateConfig } from '../../services/generate'
+// GenerateService 改为按需加载
 import { useUser } from '../../stores/userStore'
-import { DownloadManager } from '../../utils/downloadManager'
-import WorkPreviewModal, { WorkPreviewData } from '../../components/WorkPreviewModal'
+// DownloadManager 改为按需加载
+import { WorkPreviewData } from '../../components/WorkPreviewModal'
+
+// 懒加载组件
+const WorkPreviewModal = lazy(() => import('../../components/WorkPreviewModal'))
 import './index.less'
 
 // 定义消息类型
@@ -180,9 +184,8 @@ export default function Workspace() {
   const [previewModalVisible, setPreviewModalVisible] = useState(false)
   const [selectedWork, setSelectedWork] = useState<WorkPreviewData | null>(null)
   const [generatedWorksData, setGeneratedWorksData] = useState<Map<string, WorkPreviewData>>(new Map()) // 存储生成的作品数据
+
   const uploadAreaRef = useRef<any>(null)
-  const _inputRef = useRef<any>(null)
-  const _buttonRef = useRef<any>(null)
   const messagesEndRef = useRef<any>(null)
   const textareaRef = useRef<any>(null) // Textarea组件引用
 
@@ -196,6 +199,7 @@ export default function Workspace() {
     if (Taro.getEnv() === Taro.ENV_TYPE.WEB) {
       setupH5KeyboardListener()
     }
+
 
     // 添加机器人欢迎消息
     const welcomeMessage: Message = {
@@ -221,14 +225,14 @@ export default function Workspace() {
           const safeAreaInsetBottom = windowInfo.safeArea ? windowInfo.screenHeight - windowInfo.safeArea.bottom : 0
           // 小程序tabBar高度：iOS一般49px + 安全区域，Android一般50px + 安全区域
           calculatedHeight = systemInfo.platform === 'ios' ? 49 + safeAreaInsetBottom : 50 + safeAreaInsetBottom
+          setTabBarHeight(calculatedHeight)
+          updateMainContentPadding(calculatedHeight)
 
           console.log('小程序tabBar高度计算:', {
             platform: systemInfo.platform,
             safeAreaInsetBottom,
             calculatedHeight
           })
-          setTabBarHeight(calculatedHeight)
-          updateMainContentPadding(calculatedHeight)
         } catch (error) {
           // 如果新API不支持，降级使用旧API
           Taro.getSystemInfo({
@@ -301,9 +305,6 @@ export default function Workspace() {
 
   // 设置H5键盘监听器 - 禁用自动移动，保持和tabbar的相对位置
   const setupH5KeyboardListener = (): void => {
-    // 不做任何处理，让输入框和tabbar始终保持相对位置
-    // iOS Safari会自动处理页面滚动和键盘避让
-    console.log('H5键盘监听已设置，但不进行位置调整，保持与tabbar的相对位置')
   }
 
   // 设置H5环境下的滚动行为
@@ -355,8 +356,6 @@ export default function Workspace() {
       document.body.style.width = '100%'
       document.body.style.height = '100%'
 
-      console.log('H5滚动行为已设置：禁用页面级滚动，只允许内容区域滚动')
-
       // 组件卸载时清理
       return () => {
         document.removeEventListener('touchstart', preventZoom)
@@ -393,13 +392,6 @@ export default function Workspace() {
     }
   }
 
-  // 处理选项点击
-  const _handleOptionClick = (option: string): void => {
-    // 将选项添加到输入文本中
-    const currentText = inputText.trim()
-    const newText = currentText ? `${currentText}，${option}` : option
-    setInputText(newText)
-  }
 
   // 处理风格选择
   const handleStyleSelect = (styleValue: string): void => {
@@ -419,6 +411,7 @@ export default function Workspace() {
   // 加载生成配置
   const loadGenerateConfig = async (): Promise<void> => {
     try {
+      const { GenerateService } = await import('../../services/generate')
       const config = await GenerateService.getGenerateConfig()
 
       // 对风格选项进行排序，"动作的幅度更大"排在最前面
@@ -472,6 +465,7 @@ export default function Workspace() {
   const loadDemoExample = async (): Promise<void> => {
     try {
       setIsLoadingDemo(true)
+      const { GenerateService } = await import('../../services/generate')
       const demo = await GenerateService.getDemoExample()
       setDemoExample(demo)
       
@@ -524,17 +518,6 @@ export default function Workspace() {
   const isH5 = Taro.getEnv() === Taro.ENV_TYPE.WEB
 
 
-  // 启用拖拽上传（仅H5环境）
-  useEffect(() => {
-    if (isH5 && uploadAreaRef.current) {
-      const cleanup = H5UploadUtils.enableDragAndDrop(
-        uploadAreaRef.current,
-        handleDragAndDrop
-      )
-      
-      return cleanup
-    }
-  }, [isH5, uploadAreaRef.current])
 
   // H5环境下设置滚动行为
   useEffect(() => {
@@ -552,16 +535,14 @@ export default function Workspace() {
     }
   }, [cleanupFunction])
 
-  // 自动滚动到最新消息
+  // 自动滚动到底部
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => {
         if (isH5) {
           // H5环境使用原生scrollIntoView，确保消息不被输入框遮挡
           if (messagesEndRef.current) {
-            // 计算输入框高度，确保滚动时留出足够空间
-            const inputArea = document.querySelector('.input-area') as HTMLElement
-            const inputHeight = inputArea ? inputArea.offsetHeight : 150 // 默认150px
+            // H5环境使用原生scrollIntoView，确保消息不被输入框遮挡
 
             // 滚动到消息底部，但留出输入框高度的空间
             const mainContent = document.querySelector('.main-content') as HTMLElement
@@ -616,27 +597,6 @@ export default function Workspace() {
     }
   }, [messages, isH5])
 
-  // 处理拖拽上传
-  const handleDragAndDrop = async (files: File[]): Promise<void> => {
-    setIsDragOver(false) // 重置拖拽状态
-    
-    if (files.length === 0) return
-    
-    // 只处理第一个文件
-    const file = files[0]
-    await handleFileUpload(file)
-  }
-
-  // 拖拽进入事件
-  const _handleDragEnter = (): void => {
-    setIsDragOver(true)
-  }
-
-  // 拖拽离开事件
-  const _handleDragLeave = (): void => {
-    setIsDragOver(false)
-  }
-
   // 获取图片尺寸
   const getImageDimensions = (file: File): Promise<{width: number, height: number}> => {
     return new Promise((resolve, reject) => {
@@ -651,16 +611,19 @@ export default function Workspace() {
   }
 
   // 处理文件上传
-  const handleFileUpload = async (file:File): Promise<void> => {
+  const handleFileUpload = useCallback(async (file:File): Promise<void> => {
     try {
       setIsUploading(true)
       setUploadProgress(0)
       
+      // 动态加载验证工具
+      const { H5UploadUtils } = await import('../../utils/h5Upload')
+
       // 验证文件类型
       if (!H5UploadUtils.isValidImage(file)) {
         throw new Error('不支持的文件类型，请选择有效的图片文件')
       }
-      
+
       // 检查文件大小
       const maxSize = 10 * 1024 * 1024 // 10MB
       if (!H5UploadUtils.checkFileSize(file, maxSize)) {
@@ -685,10 +648,11 @@ export default function Workspace() {
         const onProgress = (progress: number) => {
           setUploadProgress(progress)
         }        
-        // 上传图片到图床
+        // 动态加载上传服务并上传图片到图床
+        const { UploadService } = await import('../../services/upload')
         const { imageUrl } = await UploadService.uploadImage(
-          file, 
-          file.name, 
+          file,
+          file.name,
           onProgress
         )
         // 创建图片对象
@@ -732,7 +696,39 @@ export default function Workspace() {
       setIsUploading(false)
       setUploadProgress(0)
     }
-  }
+  }, [])
+
+  // 处理拖拽上传
+  const handleDragAndDrop = useCallback(async (files: File[]): Promise<void> => {
+    setIsDragOver(false) // 重置拖拽状态
+
+    if (files.length === 0) return
+
+    // 只处理第一个文件
+    const file = files[0]
+    await handleFileUpload(file)
+  }, [handleFileUpload])
+
+  // 启用拖拽上传（仅H5环境）
+  useEffect(() => {
+    if (isH5 && uploadAreaRef.current) {
+      let cleanup: (() => void) | undefined
+
+      // 动态加载 H5UploadUtils
+      import('../../utils/h5Upload').then(({ H5UploadUtils }) => {
+        if (uploadAreaRef.current) {
+          cleanup = H5UploadUtils.enableDragAndDrop(
+            uploadAreaRef.current,
+            handleDragAndDrop
+          )
+        }
+      })
+
+      return () => {
+        if (cleanup) cleanup()
+      }
+    }
+  }, [isH5, handleDragAndDrop])
 
   // 处理图片上传
   const handleChooseImage = async (): Promise<void> => {
@@ -740,11 +736,12 @@ export default function Workspace() {
       if (isH5) {
         // H5环境：使用自定义文件选择器
         try {
+          const { H5UploadUtils } = await import('../../utils/h5Upload')
           const files = await H5UploadUtils.chooseFiles('image/*', false)
           if (files.length === 0) {
             throw new Error('未选择文件')
           }
-          
+
           await handleFileUpload(files[0])
           
         } catch (error) {
@@ -806,10 +803,11 @@ export default function Workspace() {
             setUploadProgress(progress)
           }
           
-          // 上传图片到图床
+          // 动态加载上传服务并上传图片到图床
+          const { UploadService } = await import('../../services/upload')
           const { imageUrl } = await UploadService.uploadImage(
-            localPath, 
-            fileName, 
+            localPath,
+            fileName,
             onProgress
           )
           
@@ -998,12 +996,13 @@ export default function Workspace() {
     } : null
 
     try {
-      // 调用API创建任务
+      // 动态加载生成服务并调用API创建任务
+      const { GenerateService } = await import('../../services/generate')
       const requestData: any = {
         prompt: inputText.trim(),
         style: selectedStyle
       }
-      
+
       // 如果有上传的图片，添加imageUrl
       if (uploadedImage && uploadedImage.url) {
         requestData.imageUrl = uploadedImage.url
@@ -1111,6 +1110,7 @@ export default function Workspace() {
   // 处理下载（从弹窗中触发）
   const handleDownloadFromModal = async (workData: WorkPreviewData): Promise<void> => {
     try {
+      const { DownloadManager } = await import('../../utils/downloadManager')
       await DownloadManager.downloadImage(workData.gifUrl)
     } catch (error) {
       // 下载失败时显示错误提示
@@ -1278,6 +1278,7 @@ export default function Workspace() {
       icon: 'none'
     })
   }
+
 
 
   return (
@@ -1464,7 +1465,6 @@ export default function Workspace() {
         <View ref={messagesEndRef} className='messages-end'></View>
       </View>
 
-
       {/* 输入区域 */}
       <View className='input-area' style={{ bottom: '0px' }} onClick={(e) => e.stopPropagation()}>
         <View className='input-container'>
@@ -1573,12 +1573,17 @@ export default function Workspace() {
       </View>
 
       {/* 作品预览弹窗 */}
-      <WorkPreviewModal
-        isOpened={previewModalVisible}
-        workData={selectedWork}
-        onClose={handleClosePreviewModal}
-        onDownload={handleDownloadFromModal}
-      />
+      {previewModalVisible && (
+        <Suspense fallback={<View className='modal-loading'>加载中...</View>}>
+          <WorkPreviewModal
+            isOpened={previewModalVisible}
+            workData={selectedWork}
+            onClose={handleClosePreviewModal}
+            onDownload={handleDownloadFromModal}
+          />
+        </Suspense>
+      )}
+
     </View>
   )
 }
