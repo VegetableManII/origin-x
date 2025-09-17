@@ -1,4 +1,4 @@
-import { View, Text, Image, Button } from '@tarojs/components'
+import { View, Text, Image, Button, ScrollView } from '@tarojs/components'
 import Taro, { useLoad, showToast, usePullDownRefresh } from '@tarojs/taro'
 import { useState, useRef } from 'react'
 import { useUser } from '../../stores/userStore'
@@ -16,38 +16,82 @@ export default function Profile() {
   const [userWorks, setUserWorks] = useState<UserWork[]>([])
   const [worksLoading, setWorksLoading] = useState(false)
   const [worksError, setWorksError] = useState<string | null>(null)
-  const [worksPageSize, setWorksPageSize] = useState(10)
+  const [worksPageSize, setWorksPageSize] = useState(4)
+
+  // 分页状态管理
+  const [currentPage, setCurrentPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   
   // 作品预览弹窗状态
   const [previewModalVisible, setPreviewModalVisible] = useState(false)
   const [selectedWork, setSelectedWork] = useState<WorkPreviewData | null>(null)
 
   // 获取用户历史记录
-  const fetchUserWorks = async (pageNo: number = 1, pageSize: number = 10) => {
+  const fetchUserWorks = async (pageNo: number = 1, pageSize: number = 4, isLoadMore: boolean = false) => {
     try {
-      setWorksLoading(true)
+      if (isLoadMore) {
+        setLoadingMore(true)
+        setCurrentPage(pageNo) // 更新当前页码
+      } else {
+        setWorksLoading(true)
+        setCurrentPage(1)
+        setHasMore(true)
+      }
       setWorksError(null)
-      
+
       const response = await WorksService.getUserWorksWithPagination(pageNo, pageSize)
-      setUserWorks(response.works)
-      setWorksPageSize(response.pageSize)
+
+      if (isLoadMore) {
+        // 追加数据
+        setUserWorks(prev => [...prev, ...response.works])
+      } else {
+        // 替换数据（初始加载或刷新）
+        setUserWorks(response.works)
+      }
+
+      // 只在后端返回有效的pageSize时才更新，否则保持当前设置
+      if (response.pageSize && response.pageSize > 0) {
+        setWorksPageSize(response.pageSize)
+      }
+
+      // 判断是否还有更多数据
+      const hasMoreData = response.works.length === pageSize
+      setHasMore(hasMoreData)
+
     } catch (error) {
       console.error('获取用户历史记录失败:', error)
       setWorksError('获取历史记录失败')
     } finally {
-      setWorksLoading(false)
+      if (isLoadMore) {
+        setLoadingMore(false)
+      } else {
+        setWorksLoading(false)
+      }
     }
   }
 
   // 刷新用户历史记录
   const refreshUserWorks = async () => {
-    await fetchUserWorks(1, worksPageSize)
+    setCurrentPage(1)
+    setHasMore(true)
+    const pageSize = 4 // 固定使用4
+    await fetchUserWorks(1, pageSize, false)
+  }
+
+  // 加载更多数据
+  const loadMoreWorks = async () => {
+    if (!hasMore || loadingMore) return
+
+    const nextPage = currentPage + 1
+    const pageSize = 4 // 固定使用4，不依赖可能被后端覆盖的worksPageSize
+    await fetchUserWorks(nextPage, pageSize, true)
   }
 
   useLoad(() => {
     console.log('Profile page loaded.')
     // 加载用户历史记录
-    fetchUserWorks(1, 10)
+    fetchUserWorks(1, 4)
   })
 
   // 下拉刷新处理
@@ -138,9 +182,9 @@ export default function Profile() {
         <View className='profile-header'>
           <View className='user-info-section'>
             <View className='avatar-container'>
-              <Image 
-                className='profile-avatar' 
-                src={(state.user && state.user.userAvatar) || ''} 
+              <Image
+                className='profile-avatar'
+                src={(state.user && state.user.userAvatar) || ''}
                 mode='aspectFill'
               />
             </View>
@@ -151,7 +195,7 @@ export default function Profile() {
           </View>
         </View>
       </View>
-      
+
       {/* 余额和积分卡片 */}
       <View className='balance-card-container'>
         <View className='profile-info-card'>
@@ -176,41 +220,64 @@ export default function Profile() {
           <Text className='history-title'>创作历史</Text>
           <Text className='refresh-hint'>下拉刷新↓</Text>
         </View>
-        
-        <View className='history-list'>
-          {worksLoading ? (
-            <View className='loading-container'>
-              <Text className='loading-text'>加载中...</Text>
-            </View>
-          ) : worksError ? (
-            <View className='error-container'>
-              <Text className='error-text'>{worksError}</Text>
-            </View>
-          ) : userWorks.length === 0 ? (
-            <View className='empty-container'>
-              <Text className='empty-text'>暂无创作历史</Text>
-            </View>
-          ) : (
-            userWorks.map((work: UserWork) => (
-              <View key={work.id} className='history-item'>
-                <View className='history-card'>
-                  <View className='image-container'>
-                    <Image
-                      className="history-preview"
-                      src={work.generatedImageUrl}
-                      mode='aspectFill'
-                      onClick={() => handleWorkClick(work)}
-                    />
-                    <View className='image-overlay'>
-                      <Text className='history-description'>{work.prompt}</Text>
-                      <Text className='history-date'>{formatDate(work.createdAt)}</Text>
+
+        <ScrollView
+          className='history-scroll-container'
+          scrollY
+          refresherEnabled
+          refresherTriggered={worksLoading}
+          onRefresherRefresh={refreshUserWorks}
+          onScrollToLower={loadMoreWorks}
+          lowerThreshold={50}
+        >
+          <View className='history-list'>
+            {worksLoading ? (
+              <View className='loading-container'>
+                <Text className='loading-text'>加载中...</Text>
+              </View>
+            ) : worksError ? (
+              <View className='error-container'>
+                <Text className='error-text'>{worksError}</Text>
+              </View>
+            ) : userWorks.length === 0 ? (
+              <View className='empty-container'>
+                <Text className='empty-text'>暂无创作历史</Text>
+              </View>
+            ) : (
+              userWorks.map((work: UserWork) => (
+                <View key={work.id} className='history-item'>
+                  <View className='history-card'>
+                    <View className='image-container'>
+                      <Image
+                        className="history-preview"
+                        src={work.generatedImageUrl}
+                        mode='aspectFill'
+                        onClick={() => handleWorkClick(work)}
+                      />
+                      <View className='image-overlay'>
+                        <Text className='history-description'>{work.prompt}</Text>
+                        <Text className='history-date'>{formatDate(work.createdAt)}</Text>
+                      </View>
                     </View>
                   </View>
                 </View>
+              ))
+            )}
+
+            {/* 加载更多提示 */}
+            {userWorks.length > 0 && (
+              <View className='load-more-container'>
+                {loadingMore ? (
+                  <Text className='load-more-text'>加载中...</Text>
+                ) : hasMore ? (
+                  <Text className='load-more-text'>上拉加载更多</Text>
+                ) : (
+                  <Text className='load-more-text'>没有更多数据了</Text>
+                )}
               </View>
-            ))
-          )}
-        </View>
+            )}
+          </View>
+        </ScrollView>
       </View>
 
       {/* 作品预览弹窗 */}

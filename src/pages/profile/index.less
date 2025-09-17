@@ -1,9 +1,13 @@
 @import '../../styles/variables.less';
 
 .profile-page {
-  min-height: 100vh;
+  height: 100vh;
   background: #f5f5f5;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
+
 
 // 渐变背景区域
 .gradient-bg {
@@ -11,7 +15,8 @@
   background: linear-gradient(135deg, #4A90E2 0%, #6BB6FF 100%);
   padding: 96px 32px 64px;
   position: relative;
-  
+  flex-shrink: 0;
+
   &::after {
     content: '';
     position: absolute;
@@ -92,6 +97,7 @@
   margin-top: -32px;
   position: relative;
   z-index: 10;
+  flex-shrink: 0;
 }
 
 .profile-info-card {
@@ -160,14 +166,21 @@
 
 // 历史记录区域
 .history-section {
-  padding: 24px 16px;
+  padding: 24px 16px 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
+
+
 
 .history-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
 .refresh-hint {
@@ -236,10 +249,18 @@
   font-size: 28px;
 }
 
+// 历史记录滚动容器
+.history-scroll-container {
+  flex: 1;
+  height: 100%;
+  padding-bottom: 24px;
+}
+
 .history-list {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+  padding-bottom: 20px;
 }
 
 .history-item {
@@ -350,4 +371,20 @@
 .empty-text {
   color: #9ca3af;
 }
+
+// 加载更多提示样式
+.load-more-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  grid-column: 1 / -1; // 跨越所有列
+}
+
+.load-more-text {
+  color: #6b7280;
+  font-size: 24px;
+  text-align: center;
+}
+
 

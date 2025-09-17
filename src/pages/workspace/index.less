@@ -1,12 +1,17 @@
 @import '../../styles/variables.less';
 
+
 .workspace {
-  min-height: 100vh;
+  height: 100vh; /* 使用固定高度而不是min-height */
   background: @bg-primary;
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow-x: hidden;
+  overflow: hidden; /* 防止整个页面滚动，只允许内容区域滚动 */
+
+  /* H5环境下禁用iOS的弹性滚动和下拉刷新 */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none; /* 防止过度滚动 */
 }
 
 
@@ -40,98 +45,134 @@
   background: #ffffff;
 }
 
-/* 头部区域 - 确保白色背景 */
+/* 头部区域 - 固定定位 */
 .header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   padding: 20px @spacing-md 10px;
   text-align: center;
   background: #ffffff;
   border-bottom: 1px solid #f8f9fa;
+  z-index: 100;
 }
 
 .creativity-logo {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
   font-size: 40px;
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.15rem;
   margin-bottom: 1rem;
   white-space: nowrap;
+  background: rgba(240, 248, 255, 0.8);
+  border-radius: 16px;
+  padding: 16px 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .creativity-letter {
   display: inline-block;
   transition: all 0.3s ease;
   cursor: pointer;
+  flex: 1;
+  text-align: center;
+  animation: autoBounce 3s ease-in-out infinite;
 }
 
 .creativity-letter.c {
   color: #FF6B6B;
-  transform: rotate(-5deg);
   text-shadow: 3px 3px 0px rgba(255, 107, 107, 0.3);
+  animation-delay: 0s;
 }
 
 .creativity-letter.r {
   color: #4ECDC4;
-  transform: rotate(3deg) translateY(-2px);
   text-shadow: 2px 2px 0px rgba(78, 205, 196, 0.3);
+  animation-delay: 0.1s;
 }
 
 .creativity-letter.e {
   color: #45B7D1;
   font-size: 1.1em;
   text-shadow: 2px 2px 0px rgba(69, 183, 209, 0.3);
+  animation-delay: 0.2s;
 }
 
 .creativity-letter.a {
   color: #FFA07A;
-  transform: rotate(-3deg) translateY(2px);
   text-shadow: 3px 3px 0px rgba(255, 160, 122, 0.3);
+  animation-delay: 0.3s;
 }
 
 .creativity-letter.t {
   color: #98D8C8;
-  transform: rotate(4deg);
   text-shadow: 2px 2px 0px rgba(152, 216, 200, 0.3);
+  animation-delay: 0.4s;
 }
 
 .creativity-letter.i {
   color: #F7DC6F;
-  transform: translateY(-3px);
   text-shadow: 2px 2px 0px rgba(247, 220, 111, 0.3);
+  animation-delay: 0.5s;
 }
 
 .creativity-letter.v {
   color: #BB8FCE;
-  transform: rotate(-2deg);
   text-shadow: 2px 2px 0px rgba(187, 143, 206, 0.3);
+  animation-delay: 0.6s;
 }
 
 .creativity-letter.i2 {
   color: #85C1E9;
-  transform: rotate(2deg) translateY(-1px);
   text-shadow: 2px 2px 0px rgba(133, 193, 233, 0.3);
+  animation-delay: 0.7s;
 }
 
 .creativity-letter.t2 {
   color: #F8C471;
-  transform: rotate(-1deg);
   text-shadow: 2px 2px 0px rgba(248, 196, 113, 0.3);
+  animation-delay: 0.8s;
 }
 
 .creativity-letter.y {
   color: #D7BDE2;
-  transform: rotate(3deg) translateY(1px);
   text-shadow: 2px 2px 0px rgba(215, 189, 226, 0.3);
+  animation-delay: 0.9s;
 }
 
 .creativity-letter:hover {
   transform: scale(1.2) rotate(0deg) translateY(-5px) !important;
-  animation: bounce 0.6s ease-in-out;
+  animation: hoverBounce 0.6s ease-in-out;
 }
 
-@keyframes bounce {
+/* 自动弹跳动画延迟已在字母颜色样式中定义 */
+
+/* 自动弹跳关键帧 */
+@keyframes autoBounce {
+  0%, 90%, 100% {
+    transform: scale(1) translateY(0);
+  }
+  5% {
+    transform: scale(1.1) translateY(-8px);
+  }
+  10% {
+    transform: scale(1.05) translateY(-4px);
+  }
+  15% {
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* 悬停弹跳关键帧 */
+@keyframes hoverBounce {
   0%, 20%, 50%, 80%, 100% {
     transform: scale(1.2) translateY(-5px);
   }
@@ -143,11 +184,21 @@
   }
 }
 
-/* 主要内容区域 */
+/* 主要内容区域 - 可滚动 */
 .main-content {
   flex: 1;
-  padding: 0 @spacing-md var(--input-area-bottom-space, 190px); /* 动态设置底部空间 */
+  padding: 100px @spacing-md var(--input-area-bottom-space, 190px); /* 顶部留出header空间 */
   overflow-y: auto;
+  overflow-x: hidden;
+
+  /* H5环境下优化滚动体验 */
+  -webkit-overflow-scrolling: touch; /* iOS平滑滚动 */
+  overscroll-behavior-y: contain; /* 防止滚动传播到父容器 */
+  scroll-behavior: smooth; /* 平滑滚动 */
+
+  /* 确保滚动区域有明确的边界 */
+  position: relative;
+  z-index: 1;
 }
 
 /* 欢迎卡片 */
@@ -477,7 +528,7 @@
 }
 
 .bubble-text {
-  font-size: 14px;
+  font-size: 20px;
   line-height: 1.4;
   color: inherit;
   word-wrap: break-word;
@@ -660,7 +711,7 @@
 }
 
 .demo-card-title {
-  font-size: 14px;
+  font-size: 20px;
   color: @text-primary;
   margin-bottom: 12px;
   font-weight: 500;
@@ -702,7 +753,7 @@
 
 
 .demo-prompt {
-  font-size: 13px;
+  font-size: 19px;
   color: @text-secondary;
   line-height: 1.2;
   background: rgba(74, 144, 226, 0.05);
@@ -726,7 +777,7 @@
 }
 
 .demo-hint-text {
-  font-size: 12px;
+  font-size: 18px;
   color: @primary-color;
   font-weight: 500;
   line-height: 1.2;
@@ -1369,10 +1420,14 @@
   .main-content {
     padding-bottom: var(--input-area-bottom-space, 140px);
   }
-  
+
   .input-area {
-    padding: 0 12px; /* 移动端也完全移除上下padding */
-    bottom: var(--tabbar-height, 50px); /* 移动端也统一使用tabbar高度 */
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-bottom: var(--tabbar-height, 50px); /* 移动端为tabBar留出空间 */
+    padding-top: 0;
+    bottom: 0; /* 移动端也固定在底部 */
+    height: 0; /* 移动端高度也设置为0 */
   }
   
   .input-card {
@@ -1503,6 +1558,32 @@
   }
 }
 
+/* 小屏幕设备适配 */
+@media (max-width: 480px) {
+  .creativity-logo {
+    font-size: 28px;
+    padding: 10px 12px;
+    margin-bottom: 0.6rem;
+  }
+
+  .header {
+    padding: 12px 12px 6px;
+  }
+}
+
+/* 超小屏幕设备适配 */
+@media (max-width: 360px) {
+  .creativity-logo {
+    font-size: 24px;
+    padding: 8px 10px;
+    margin-bottom: 0.5rem;
+  }
+
+  .header {
+    padding: 10px 10px 5px;
+  }
+}
+
 
 
 /* 响应式设计 */
@@ -1519,6 +1600,12 @@
   
   .creativity-logo {
     font-size: 32px;
+    padding: 12px 16px;
+    margin-bottom: 0.8rem;
+  }
+
+  .header {
+    padding: 16px @spacing-md 8px;
   }
   
   /* 移动端输入区域优化 */
@@ -1544,11 +1631,29 @@
 /* 新的输入区域样式 - 基于原型图横向布局 */
 .input-area {
   position: fixed;
-  bottom: var(--tabbar-height, 50px); /* 统一使用tabbar高度 */
+  bottom: 0; /* 固定在屏幕底部 */
   left: 0;
   right: 0;
-  padding: 0 16px; /* 完全移除上下padding */
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-bottom: var(--tabbar-height, 50px); /* 使用padding-bottom为tabBar留出空间 */
+  padding-top: 0;
+  height: 0; /* 高度设置为0，完全由内容撑开 */
   z-index: 1000;
+
+  /* H5环境下防止输入法遮挡 - 移除transition，避免和tabbar移动冲突 */
+  /* transition: transform 0.3s ease; */
+
+  /* 确保在所有移动浏览器中都能正确工作 */
+  -webkit-transform: translateZ(0); /* 硬件加速 */
+  transform: translateZ(0);
+
+  /* 防止iOS Safari中的bounce效果影响 */
+  -webkit-overflow-scrolling: touch;
+
+  /* 调试用 - 可以临时开启查看边界 */
+  /* border: 2px solid red; */
+  /* background: rgba(255, 0, 0, 0.1); */
 }
 
 .input-container {
@@ -1564,7 +1669,8 @@
   border: 1px solid #e5e7eb;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   overflow: hidden;
-  margin: 0; /* 确保没有外边距 */
+  margin: 0 0 8px 0; /* 底部留8px间隙 */
+  transform: translateY(-100%); /* 向上偏移100%，让卡片完全显示在容器上方 */
 }
 
 /* 图片上传容器内的图片显示 */
@@ -1674,7 +1780,7 @@
   background: transparent;
   border: none;
   outline: none;
-  font-size: 16px;
+  font-size: 22px;
   line-height: 1.4; /* 稍微增加行高提升可读性 */
   color: #374151;
   resize: none;
@@ -1716,12 +1822,12 @@
 /* 小程序输入区域整体优化 */
 .taro_page .input-area {
   /* 确保输入区域在键盘弹出时有足够的滚动空间 */
-  margin-bottom: 20px;
+  /* 现在使用padding-bottom和margin来控制与tabbar的距离 */
 }
 
 /* 小程序页面底部留出更多空间 */
 .taro_page .main-content {
-  padding-bottom: calc(var(--input-area-bottom-space, 190px) + 100px); /* 额外增加100px空间 */
+  padding-bottom: calc(var(--input-area-bottom-space, 190px) + 20px); /* 减少额外空间 */
 }
 
 /* 更强力的小程序Textarea重置 - 针对原生textarea元素 */
@@ -1766,6 +1872,7 @@
 
 .main-text-placeholder {
   color: #9ca3af;
+  font-size: 22px;
 }
 
 /* 右侧功能按钮组 */
@@ -1833,7 +1940,7 @@
 }
 
 .style-label {
-  font-size: 14px;
+  font-size: 20px;
   color: #6b7280;
   font-weight: 500;
   flex-shrink: 0;
@@ -1860,7 +1967,7 @@
 }
 
 .style-selected {
-  font-size: 14px;
+  font-size: 20px;
   color: #374151;
   flex: 1;
 }
@@ -1910,7 +2017,7 @@
 }
 
 .style-option-text {
-  font-size: 14px;
+  font-size: 20px;
   color: #374151;
   transition: color 0.2s ease;
 }

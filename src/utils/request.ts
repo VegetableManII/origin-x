@@ -86,6 +86,14 @@ export class RequestService {
         data: config.data,
         header: headers,
         timeout: config.timeout || 10000,
+        // H5环境下启用withCredentials
+        ...(Taro.getEnv() === Taro.ENV_TYPE.WEB && {
+          enableHttp2: false,
+          enableQuic: false,
+          enableCache: false,
+          dataType: 'json',
+          responseType: 'text'
+        })
       });
 
       // 在小程序环境下处理响应中的Set-Cookie
@@ -228,7 +236,11 @@ export class RequestService {
     // H5原生SSE连接
     function connectWithNativeSSE() {
       try {
-        eventSource = new EventSource(fullUrl);
+        // 原生EventSource不支持自定义headers，但会自动携带同域cookie
+        // 如果需要跨域cookie，需要确保服务器设置了正确的CORS
+        eventSource = new EventSource(fullUrl, {
+          withCredentials: true
+        });
 
         eventSource.onopen = () => {
           retryCount = 0;

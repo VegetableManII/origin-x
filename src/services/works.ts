@@ -12,16 +12,16 @@ export class WorksService {
    */
   static async getUserWorks(params?: UserWorksParams): Promise<UserWorksResponse> {
     const queryParams = new URLSearchParams();
-    
+
     if (params && params.pageNo) {
       queryParams.append('pageNo', params.pageNo.toString());
     }
     if (params && params.pageSize) {
       queryParams.append('pageSize', params.pageSize.toString());
     }
-    
+
     const url = `/users/works/history${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-    
+
     return RequestService.get<UserWorksResponse>(url);
   }
 
@@ -31,7 +31,7 @@ export class WorksService {
    * @param pageSize 每页数量
    * @returns 用户历史记录列表
    */
-  static async getUserWorksWithPagination(pageNo: number = 1, pageSize: number = 10): Promise<UserWorksResponse> {
+  static async getUserWorksWithPagination(pageNo: number = 1, pageSize: number = 4): Promise<UserWorksResponse> {
     return this.getUserWorks({ pageNo, pageSize });
   }
 }

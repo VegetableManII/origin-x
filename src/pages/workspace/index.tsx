@@ -1,4 +1,4 @@
-import { View, Text, Button, Image, Video, Input, Progress, Textarea } from '@tarojs/components'
+import { View, Text, Image, Video, Textarea } from '@tarojs/components'
 import Taro, { useLoad } from '@tarojs/taro'
 import { useState, useRef, useEffect } from 'react'
 import { UploadService } from '../../services/upload'
@@ -163,17 +163,17 @@ export default function Workspace() {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState<string>('')
   const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(null)
-  const [isUploading, setIsUploading] = useState<boolean>(false)
-  const [uploadProgress, setUploadProgress] = useState<number>(0)
+  const [_isUploading, setIsUploading] = useState<boolean>(false)
+  const [_uploadProgress, setUploadProgress] = useState<number>(0)
   const [cleanupFunction, setCleanupFunction] = useState<(() => void) | null>(null)
   const [isProcessing, setIsProcessing] = useState<boolean>(false) // 是否正在处理任务
   const [isSending, setIsSending] = useState<boolean>(false) // 是否正在发送消息
-  const [isDragOver, setIsDragOver] = useState<boolean>(false)
+  const [_isDragOver, setIsDragOver] = useState<boolean>(false)
   const [demoExample, setDemoExample] = useState<DemoExample | null>(null)
-  const [isLoadingDemo, setIsLoadingDemo] = useState<boolean>(false)
+  const [_isLoadingDemo, setIsLoadingDemo] = useState<boolean>(false)
   const [generateConfig, setGenerateConfig] = useState<GenerateConfig | null>(null)
-  const [tabBarHeight, setTabBarHeight] = useState<number>(50) // tabBar高度
-  const [inputOptions, setInputOptions] = useState<string[]>([]) // 输入选项
+  const [_tabBarHeight, setTabBarHeight] = useState<number>(50) // tabBar高度
+  const [_inputOptions, setInputOptions] = useState<string[]>([]) // 输入选项
   const [selectedStyle, setSelectedStyle] = useState<string>('style-b') // 选中的风格，优先使用"动作的幅度更大"
   const [showStyleDropdown, setShowStyleDropdown] = useState<boolean>(false) // 是否显示风格下拦框
   // 作品预览弹窗状态
@@ -181,8 +181,8 @@ export default function Workspace() {
   const [selectedWork, setSelectedWork] = useState<WorkPreviewData | null>(null)
   const [generatedWorksData, setGeneratedWorksData] = useState<Map<string, WorkPreviewData>>(new Map()) // 存储生成的作品数据
   const uploadAreaRef = useRef<any>(null)
-  const inputRef = useRef<any>(null)
-  const buttonRef = useRef<any>(null)
+  const _inputRef = useRef<any>(null)
+  const _buttonRef = useRef<any>(null)
   const messagesEndRef = useRef<any>(null)
   const textareaRef = useRef<any>(null) // Textarea组件引用
 
@@ -191,7 +191,12 @@ export default function Workspace() {
     loadGenerateConfig()
     loadInputOptions()
     getTabBarHeight()
-    
+
+    // H5环境下监听视口变化
+    if (Taro.getEnv() === Taro.ENV_TYPE.WEB) {
+      setupH5KeyboardListener()
+    }
+
     // 添加机器人欢迎消息
     const welcomeMessage: Message = {
       id: 'welcome-' + Date.now().toString(),
@@ -214,8 +219,14 @@ export default function Workspace() {
 
           let calculatedHeight = 50 // 默认高度
           const safeAreaInsetBottom = windowInfo.safeArea ? windowInfo.screenHeight - windowInfo.safeArea.bottom : 0
-          calculatedHeight = systemInfo.platform === 'ios' ? 49 + safeAreaInsetBottom : 50
+          // 小程序tabBar高度：iOS一般49px + 安全区域，Android一般50px + 安全区域
+          calculatedHeight = systemInfo.platform === 'ios' ? 49 + safeAreaInsetBottom : 50 + safeAreaInsetBottom
 
+          console.log('小程序tabBar高度计算:', {
+            platform: systemInfo.platform,
+            safeAreaInsetBottom,
+            calculatedHeight
+          })
           setTabBarHeight(calculatedHeight)
           updateMainContentPadding(calculatedHeight)
         } catch (error) {
@@ -224,7 +235,8 @@ export default function Workspace() {
             success: (res) => {
               let calculatedHeight = 50
               const safeAreaInsetBottom = res.safeArea ? res.screenHeight - res.safeArea.bottom : 0
-              calculatedHeight = res.platform === 'ios' ? 49 + safeAreaInsetBottom : 50
+              // 降级API也使用相同的计算逻辑
+              calculatedHeight = res.platform === 'ios' ? 49 + safeAreaInsetBottom : 50 + safeAreaInsetBottom
               setTabBarHeight(calculatedHeight)
               updateMainContentPadding(calculatedHeight)
             },
@@ -245,12 +257,12 @@ export default function Workspace() {
                 '.tabbar'
               ]
               
-              let tabBar = null
+              let tabBar: Element | null = null
               for (const selector of tabBarSelectors) {
                 tabBar = document.querySelector(selector)
                 if (tabBar) break
               }
-              
+
               if (tabBar) {
                 const rect = tabBar.getBoundingClientRect()
                 const calculatedHeight = rect.height
@@ -275,14 +287,87 @@ export default function Workspace() {
   }
 
   // 更新主内容区域的padding
-  const updateMainContentPadding = (tabBarHeight: number): void => {
+  const updateMainContentPadding = (height: number): void => {
     const inputAreaHeight = 140 // 估算的输入区域高度
-    const totalBottomSpace = inputAreaHeight + tabBarHeight
-    
+    const totalBottomSpace = inputAreaHeight + height
+
     // 动态设置CSS变量或直接修改样式
     if (typeof document !== 'undefined') {
-      document.documentElement.style.setProperty('--tabbar-height', `${tabBarHeight}px`)
+      document.documentElement.style.setProperty('--tabbar-height', `${height}px`)
       document.documentElement.style.setProperty('--input-area-bottom-space', `${totalBottomSpace}px`)
+    }
+  }
+
+
+  // 设置H5键盘监听器 - 禁用自动移动，保持和tabbar的相对位置
+  const setupH5KeyboardListener = (): void => {
+    // 不做任何处理，让输入框和tabbar始终保持相对位置
+    // iOS Safari会自动处理页面滚动和键盘避让
+    console.log('H5键盘监听已设置，但不进行位置调整，保持与tabbar的相对位置')
+  }
+
+  // 设置H5环境下的滚动行为
+  const setupH5ScrollBehavior = (): (() => void) | undefined => {
+    if (typeof document !== 'undefined') {
+      // 防止整个页面的滚动和下拉刷新
+      const preventDefaultScroll = (e: TouchEvent) => {
+        // 检查是否是在可滚动区域内
+        const target = e.target as HTMLElement
+        const mainContent = document.querySelector('.main-content')
+        const inputArea = document.querySelector('.input-area')
+
+        // 允许在以下区域内的滚动：
+        // 1. main-content 区域内
+        // 2. input-area 区域内（输入框滚动）
+        const isInScrollableArea = (
+          (mainContent && mainContent.contains(target)) ||
+          (inputArea && inputArea.contains(target))
+        )
+
+        if (!isInScrollableArea) {
+          // 只阻止非滚动区域的触摸移动
+          e.preventDefault()
+        }
+      }
+
+      // 防止页面被拖拽
+      const preventDrag = (e: TouchEvent) => {
+        if (e.touches.length > 1) {
+          e.preventDefault()
+        }
+      }
+
+      // 防止双击缩放
+      const preventZoom = (e: TouchEvent) => {
+        if (e.touches.length > 1) {
+          e.preventDefault()
+        }
+      }
+
+      // 监听全局触摸事件
+      document.addEventListener('touchstart', preventZoom, { passive: false })
+      document.addEventListener('touchmove', preventDefaultScroll, { passive: false })
+      document.addEventListener('gesturestart', preventDrag, { passive: false })
+
+      // 特别处理body的滚动
+      document.body.style.overflow = 'hidden'
+      document.body.style.position = 'fixed'
+      document.body.style.width = '100%'
+      document.body.style.height = '100%'
+
+      console.log('H5滚动行为已设置：禁用页面级滚动，只允许内容区域滚动')
+
+      // 组件卸载时清理
+      return () => {
+        document.removeEventListener('touchstart', preventZoom)
+        document.removeEventListener('touchmove', preventDefaultScroll)
+        document.removeEventListener('gesturestart', preventDrag)
+
+        document.body.style.overflow = ''
+        document.body.style.position = ''
+        document.body.style.width = ''
+        document.body.style.height = ''
+      }
     }
   }
 
@@ -309,7 +394,7 @@ export default function Workspace() {
   }
 
   // 处理选项点击
-  const handleOptionClick = (option: string): void => {
+  const _handleOptionClick = (option: string): void => {
     // 将选项添加到输入文本中
     const currentText = inputText.trim()
     const newText = currentText ? `${currentText}，${option}` : option
@@ -451,6 +536,13 @@ export default function Workspace() {
     }
   }, [isH5, uploadAreaRef.current])
 
+  // H5环境下设置滚动行为
+  useEffect(() => {
+    if (Taro.getEnv() === Taro.ENV_TYPE.WEB) {
+      return setupH5ScrollBehavior()
+    }
+  }, [])
+
   // 组件卸载时清理SSE连接
   useEffect(() => {
     return () => {
@@ -465,32 +557,59 @@ export default function Workspace() {
     if (messages.length > 0) {
       setTimeout(() => {
         if (isH5) {
-          // H5环境使用原生scrollIntoView
+          // H5环境使用原生scrollIntoView，确保消息不被输入框遮挡
           if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({
-              behavior: 'smooth',
-              block: 'end'
-            })
+            // 计算输入框高度，确保滚动时留出足够空间
+            const inputArea = document.querySelector('.input-area') as HTMLElement
+            const inputHeight = inputArea ? inputArea.offsetHeight : 150 // 默认150px
+
+            // 滚动到消息底部，但留出输入框高度的空间
+            const mainContent = document.querySelector('.main-content') as HTMLElement
+            if (mainContent) {
+              const scrollHeight = mainContent.scrollHeight
+              const clientHeight = mainContent.clientHeight
+              const maxScroll = scrollHeight - clientHeight
+              const targetScroll = Math.max(0, maxScroll)
+
+              mainContent.scrollTo({
+                top: targetScroll,
+                behavior: 'smooth'
+              })
+            } else {
+              // 降级方案：使用原来的方法但调整block位置
+              messagesEndRef.current.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest' // 改为nearest避免被输入框完全遮挡
+              })
+            }
           }
         } else {
-          // 小程序环境使用Taro的pageScrollTo
-          Taro.pageScrollTo({
-            scrollTop: 99999, // 滚动到很大的值，确保到底部
-            duration: 300
-          }).catch(() => {
-            // 如果pageScrollTo失败，尝试使用createSelectorQuery
-            const query = Taro.createSelectorQuery()
-            query.select('.messages-end').boundingClientRect()
-            query.selectViewport().scrollOffset()
-            query.exec((res) => {
-              if (res[0] && res[1]) {
-                const targetTop = res[0].top + res[1].scrollTop
-                Taro.pageScrollTo({
-                  scrollTop: targetTop,
-                  duration: 300
-                })
-              }
-            })
+          // 小程序环境使用Taro的pageScrollTo，考虑输入框高度
+          const query = Taro.createSelectorQuery()
+          query.select('.messages-end').boundingClientRect()
+          query.select('.input-area').boundingClientRect()
+          query.selectViewport().scrollOffset()
+          query.exec((res) => {
+            if (res[0] && res[2]) {
+              const messagesEndRect = res[0]
+              const inputAreaRect = res[1]
+              const scrollOffset = res[2]
+
+              // 计算目标滚动位置，确保消息不被输入框遮挡
+              const inputHeight = inputAreaRect ? inputAreaRect.height : 150
+              const targetTop = messagesEndRect.top + scrollOffset.scrollTop - inputHeight - 20 // 额外留20px空间
+
+              Taro.pageScrollTo({
+                scrollTop: Math.max(0, targetTop),
+                duration: 300
+              })
+            } else {
+              // 降级方案：滚动到很大的值但稍微减少一些
+              Taro.pageScrollTo({
+                scrollTop: 99999 - 200, // 减少200px避免被输入框遮挡
+                duration: 300
+              })
+            }
           })
         }
       }, 100)
@@ -509,12 +628,12 @@ export default function Workspace() {
   }
 
   // 拖拽进入事件
-  const handleDragEnter = (): void => {
+  const _handleDragEnter = (): void => {
     setIsDragOver(true)
   }
 
   // 拖拽离开事件
-  const handleDragLeave = (): void => {
+  const _handleDragLeave = (): void => {
     setIsDragOver(false)
   }
 
@@ -754,8 +873,8 @@ export default function Workspace() {
 
   // 处理输入框获得焦点
   const handleInputFocus = (): void => {
-    // 小程序环境下，延迟滚动确保键盘完全弹出
     if (Taro.getEnv() === Taro.ENV_TYPE.WEAPP) {
+      // 小程序环境下，延迟滚动确保键盘完全弹出
       setTimeout(() => {
         // 滚动到输入区域
         const query = Taro.createSelectorQuery()
@@ -778,12 +897,13 @@ export default function Workspace() {
         })
       }, 300) // 等待键盘动画完成
     }
+    // H5环境下不需要在focus时处理，交给visualViewport监听
   }
 
   // 处理输入框失去焦点
   const handleInputBlur = (): void => {
-    // 键盘收起后可以选择滚动回原位置，或保持当前位置
-    // 这里选择保持当前位置，用户体验更好
+    // H5环境下交给visualViewport监听处理
+    // 其他环境保持当前位置，用户体验更好
   }
 
   // 点击页面其他区域收起键盘
@@ -896,7 +1016,7 @@ export default function Workspace() {
       setIsProcessing(true)
 
       // 现在添加用户消息到界面
-      const messagesToAdd = []
+      const messagesToAdd: Message[] = []
       if (userImageMessage) {
         messagesToAdd.push(userImageMessage)
       }
@@ -917,7 +1037,7 @@ export default function Workspace() {
       const cleanup = GenerateService.listenToTaskStatus(
         taskResponse.taskId,
         {
-          onConnected: (data) => {
+          onConnected: () => {
             // 不显示连接状态消息，直接保持原有的处理状态
           },
           onStatusUpdate: (data) => {
@@ -1197,10 +1317,10 @@ export default function Workspace() {
                       mode='aspectFit'
                       onError={(e) => {
                         // 用小图标替换失败的机器人头像
-                        const imgElement = e.currentTarget
+                        const imgElement = e.currentTarget as HTMLImageElement
                         if (imgElement && imgElement.parentElement) {
                           imgElement.style.display = 'none'
-                          const fallbackIcon = document.createElement('text')
+                          const fallbackIcon = document.createElement('span')
                           fallbackIcon.textContent = '🖼️'
                           fallbackIcon.style.fontSize = '16px'
                           fallbackIcon.style.textAlign = 'center'
@@ -1319,10 +1439,10 @@ export default function Workspace() {
                         mode='aspectFit'
                         onError={(e) => {
                           // 用小图标替换失败的用户头像
-                          const imgElement = e.currentTarget
+                          const imgElement = e.currentTarget as HTMLImageElement
                           if (imgElement && imgElement.parentElement) {
                             imgElement.style.display = 'none'
-                            const fallbackIcon = document.createElement('text')
+                            const fallbackIcon = document.createElement('span')
                             fallbackIcon.textContent = '🖼️'
                             fallbackIcon.style.fontSize = '16px'
                             fallbackIcon.style.textAlign = 'center'
@@ -1346,7 +1466,7 @@ export default function Workspace() {
 
 
       {/* 输入区域 */}
-      <View className='input-area' style={{ bottom: isH5 ? `${tabBarHeight}px` : '2px' }} onClick={(e) => e.stopPropagation()}>
+      <View className='input-area' style={{ bottom: '0px' }} onClick={(e) => e.stopPropagation()}>
         <View className='input-container'>
           <View className='input-card'>
             {/* 主输入区域 - 横向布局 */}
@@ -1361,10 +1481,10 @@ export default function Workspace() {
                       mode='aspectFit'
                       onError={(e) => {
                         // 用小图标替换失败的上传图片预览
-                        const imgElement = e.currentTarget
+                        const imgElement = e.currentTarget as HTMLImageElement
                         if (imgElement && imgElement.parentElement) {
                           imgElement.style.display = 'none'
-                          const fallbackIcon = document.createElement('text')
+                          const fallbackIcon = document.createElement('span')
                           fallbackIcon.textContent = '🖼️'
                           fallbackIcon.style.fontSize = '16px'
                           fallbackIcon.style.textAlign = 'center'
