@@ -13,6 +13,14 @@ export class DownloadManager {
   }
 
   /**
+   * 检测是否是iOS设备
+   */
+  static isIOS(): boolean {
+    if (typeof navigator === 'undefined') return false;
+    return /iPad|iPhone|iPod/.test(navigator.userAgent);
+  }
+
+  /**
    * 检测是否支持下载功能
    */
   static supportsDownload(): boolean {
@@ -50,6 +58,12 @@ export class DownloadManager {
     }
 
     try {
+      // iOS设备特殊处理
+      if (this.isIOS()) {
+        await this.downloadImageIOS(url);
+        return;
+      }
+
       // 尝试使用fetch下载
       const response = await fetch(url, {
         method: 'GET',
@@ -87,6 +101,73 @@ export class DownloadManager {
   }
 
   /**
+   * iOS设备下载图片处理
+   */
+  private static async downloadImageIOS(url: string): Promise<void> {
+    try {
+      // 获取图片数据
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const imageUrl = URL.createObjectURL(blob);
+
+      // 创建新窗口显示图片
+      const newWindow = window.open('', '_blank');
+      if (newWindow) {
+        newWindow.document.write(`
+          <html>
+            <head>
+              <title>长按保存图片</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <style>
+                body {
+                  margin: 0;
+                  padding: 20px;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  background: #f5f5f5;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                }
+                .tip {
+                  background: #007AFF;
+                  color: white;
+                  padding: 10px 20px;
+                  border-radius: 8px;
+                  margin-bottom: 20px;
+                  text-align: center;
+                  font-size: 16px;
+                }
+                img {
+                  max-width: 100%;
+                  height: auto;
+                  border-radius: 8px;
+                  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }
+              </style>
+            </head>
+            <body>
+              <div class="tip">长按图片保存到相册</div>
+              <img src="${imageUrl}" alt="图片" />
+            </body>
+          </html>
+        `);
+        newWindow.document.close();
+      } else {
+        throw new Error('无法打开新窗口');
+      }
+
+      // 清理blob URL
+      setTimeout(() => {
+        URL.revokeObjectURL(imageUrl);
+      }, 5000);
+
+    } catch (error) {
+      console.error('iOS下载失败:', error);
+      throw error;
+    }
+  }
+
+  /**
    * H5环境直接链接下载（降级方案）
    */
   private static downloadImageByLinkH5(url: string, filename?: string): void {
@@ -98,7 +179,7 @@ export class DownloadManager {
       const link = document.createElement('a');
       link.href = url;
       link.download = filename || this.generateFilename(url);
-      link.target = '_blank';
+      // 移除 target="_blank" 避免新标签页打开
       link.style.display = 'none';
 
       document.body.appendChild(link);
@@ -173,6 +254,26 @@ export class DownloadManager {
    * 执行小程序下载
    */
   private static performDownload(
+    url: string,
+    resolve: () => void,
+    reject: (error: Error) => void
+  ): void {
+    // 检查隐私协议授权
+    Taro.requirePrivacyAuthorize({
+      success: () => {
+        this.downloadFileInternal(url, resolve, reject);
+      },
+      fail: () => {
+        Taro.hideLoading();
+        reject(new Error('需要同意隐私协议才能保存图片'));
+      }
+    });
+  }
+
+  /**
+   * 内部下载文件方法
+   */
+  private static downloadFileInternal(
     url: string,
     resolve: () => void,
     reject: (error: Error) => void

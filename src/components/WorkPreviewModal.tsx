@@ -217,13 +217,6 @@ const WorkPreviewModal: React.FC<WorkPreviewModalProps> = ({
         {/* 操作按钮 */}
         <View className="modal-actions">
           <Button
-            className="action-btn secondary-btn"
-            onClick={onClose}
-          >
-            关闭
-          </Button>
-
-          <Button
             className={`action-btn primary-btn ${isDownloading ? 'loading' : ''}`}
             onClick={handleDownload}
             disabled={isDownloading || !workData.gifUrl}
