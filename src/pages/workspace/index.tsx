@@ -1,5 +1,5 @@
 import { View, Text, Image, Video, Textarea } from '@tarojs/components'
-import Taro, { useLoad } from '@tarojs/taro'
+import Taro, { useLoad, useShareAppMessage, useShareTimeline } from '@tarojs/taro'
 import { useState, useRef, useEffect, useCallback, Suspense, lazy } from 'react'
 // UploadService 改为按需加载
 // H5UploadUtils 改为按需加载
@@ -9,9 +9,10 @@ import { useUser } from '../../stores/userStore'
 // DownloadManager 改为按需加载
 import { WorkPreviewData } from '../../components/WorkPreviewModal'
 
+import './index.less'
+
 // 懒加载组件
 const WorkPreviewModal = lazy(() => import('../../components/WorkPreviewModal'))
-import './index.less'
 
 // 定义消息类型
 interface Message {
@@ -188,6 +189,22 @@ export default function Workspace() {
   const uploadAreaRef = useRef<any>(null)
   const messagesEndRef = useRef<any>(null)
   const textareaRef = useRef<any>(null) // Textarea组件引用
+
+  // 页面级分享配置
+  useShareAppMessage(() => {
+    return {
+      title: '表情包动起来 - AI驱动动图生成',
+      path: '/pages/workspace/index',
+      imageUrl: '' // 可以设置分享图片
+    }
+  })
+
+  useShareTimeline(() => {
+    return {
+      title: '表情包动起来 - AI驱动动图生成',
+      imageUrl: '' // 可以设置分享图片
+    }
+  })
 
   useLoad(() => {
     loadDemoExample()
